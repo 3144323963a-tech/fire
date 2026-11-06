@@ -30,7 +30,7 @@ def list_sample_tasks() -> list[dict]:
 def get_overview() -> dict:
     from platform_app.services.terrain_service import TERRAIN_TYPES
     from platform_app.services.simulation_service import event_history
-    from platform_app.services.dispatch_service import recent_incidents, resources_with_dispatches
+    from platform_app.services.dispatch_service import recent_incidents, resources_with_dispatches, list_dispatches
 
     resources = enrich_resources(read_sample_file("resources.json"))
     try:
@@ -44,6 +44,7 @@ def get_overview() -> dict:
         "environment": environment,
         "telemetry_contract": TELEMETRY_CONTRACT,
         "incidents": recent_incidents(),
+        "route_reservations": [{"task_id":row.get("task_id"),"resource_name":row.get("resource_name"),"segments":len(row.get("reserved_road_segments") or []),"state":row.get("reservation_state","—"),"reauction_state":row.get("reauction_state")} for row in list_dispatches()[:12]],
         "simulation_events": event_history(),
         "terrain_predictions": TERRAIN_TYPES,
     }

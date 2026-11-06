@@ -146,7 +146,7 @@ class PlanningServiceTests(unittest.TestCase):
             path = Path(directory) / "dispatches.json"
             path.write_text(json.dumps([row]), encoding="utf-8")
             with patch.object(dispatch_service, "DISPATCHES_FILE", path):
-                event = dispatch_service.trigger_random_incident()
+                event = dispatch_service.trigger_random_incident(reason="传感器故障")
                 self.assertEqual(event["state"], dispatch_service.RETURNING)
                 self.assertEqual(dispatch_service.overlay_dispatches([{"id": "task-1", "status": "执行中"}])[0]["status"], dispatch_service.PENDING)
                 resource = dispatch_service.resources_with_dispatches([{"id": "robot-1", "status": "待命", "position": {"x": 0, "y": 0}}])[0]

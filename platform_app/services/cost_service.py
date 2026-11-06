@@ -11,22 +11,22 @@ def resource_type(row):
     return row.get('resource_type') or {'ROBOT': 'robot', 'DOG': 'dog', 'DRONE': 'drone', 'PERSON': 'person'}.get(str(row.get('resource_id', '')).split('-')[0], 'robot')
 
 
-def path_stats(path):
+def path_stats(path, meters_per_unit=35):
     distance = ascent = 0
     for a,b in zip(path,path[1:]):
         za,zb=a.get('z',a.get('elevation_m',0)),b.get('z',b.get('elevation_m',0))
-        distance += hypot((b['x']-a['x'])*35,(b['y']-a['y'])*35,zb-za)
+        distance += hypot((b['x']-a['x'])*meters_per_unit,(b['y']-a['y'])*meters_per_unit,zb-za)
         ascent += max(0,zb-za)
     return {'distance_m': distance, 'ascent_m': ascent}
 
 
-def partial_stats(path, progress):
-    total=path_stats(path)
+def partial_stats(path, progress, meters_per_unit=35):
+    total=path_stats(path,meters_per_unit)
     left=total['distance_m']*progress
     ascent=0
     for a,b in zip(path,path[1:]):
         za,zb=a.get('z',a.get('elevation_m',0)),b.get('z',b.get('elevation_m',0))
-        length=hypot((b['x']-a['x'])*35,(b['y']-a['y'])*35,zb-za)
+        length=hypot((b['x']-a['x'])*meters_per_unit,(b['y']-a['y'])*meters_per_unit,zb-za)
         fraction=min(1,left/length) if length else 0
         ascent+=max(0,zb-za)*fraction
         left-=length*fraction
@@ -35,31 +35,32 @@ def partial_stats(path, progress):
 
 
 def plan_estimate(resource, route, energy_pct, duration=120):
-    stats=path_stats(route.get('path') or [])
+    path=route.get('execution_path') or route.get('path') or []
+    stats=path_stats(path,route.get('meters_per_unit',35))
     return {**stats, 'energy_kwh': CAPACITY_KWH.get(resource.get('type'),0)*float(energy_pct or 0)/100,
             'duration_seconds': duration, 'battery_capacity_kwh': CAPACITY_KWH.get(resource.get('type'),0), 'source': '遥测'}
 
 
 def execution_metrics(row, now=None):
-    from platform_app.services.dispatch_service import dispatch_progress, dispatch_path, RETURN_SECONDS
+    from platform_app.services.dispatch_service import dispatch_progress, dispatch_path, route_meters_per_unit, RETURN_SECONDS
     now=now or datetime.now(timezone.utc)
     progress=row.get('interrupted_progress',0) if row.get('incident_at') else dispatch_progress(row,now)
     main=dict(row);main.pop('incident_at',None)
-    stats=path_stats(dispatch_path(main));length=max(1,stats['distance_m'])
+    main_units=route_meters_per_unit(main);stats=path_stats(dispatch_path(main),main_units);length=max(1,stats['distance_m'])
     duration=float(row.get('simulation_duration_seconds') or 120)
     capacity=CAPACITY_KWH.get(resource_type(row),0)
     budget=capacity*float(row.get('estimated_energy_pct') or 0)/100
     base=float(row.get('consumption_factor',1))
     factor=base+.1*sin(pi*progress)
-    used={**partial_stats(dispatch_path(main),progress),'duration_seconds':duration*progress,'energy_kwh':budget*(base*progress+.1*(1-cos(pi*progress))/pi)}
+    used={**partial_stats(dispatch_path(main),progress,main_units),'duration_seconds':duration*progress,'energy_kwh':budget*(base*progress+.1*(1-cos(pi*progress))/pi)}
     remaining={k:0.0 for k in used}
     if row.get('incident_at'):
         started=datetime.fromisoformat(row['incident_at'].replace('Z','+00:00'))
         back_duration=float(row.get('return_duration_seconds') or RETURN_SECONDS)
         back_progress=min(1,max(0,(now-started).total_seconds()/max(1,back_duration)))
-        back=path_stats(dispatch_path(row))
+        back_units=route_meters_per_unit(row,True);back=path_stats(dispatch_path(row),back_units)
         totals={**back,'duration_seconds':back_duration,'energy_kwh':budget*back['distance_m']/length*factor}
-        partial=partial_stats(dispatch_path(row),back_progress)
+        partial=partial_stats(dispatch_path(row),back_progress,back_units)
         for k in used:
             used[k]+=partial[k] if k in partial else totals[k]*back_progress
             remaining[k]=totals[k]*(1-back_progress)

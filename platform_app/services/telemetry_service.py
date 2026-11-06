@@ -1,4 +1,4 @@
-"""Deterministic demo telemetry normalized from vendor-style robot topics."""
+"""Deterministic simulation telemetry with published ZJ Humanoid ROS topic names."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ TYPE_PROFILES = {
         "terrain": ["flat", "indoor"],
         "max_slope_deg": 12,
         "min_width_m": 0.9,
-        "speed_mps": 1.0,
+        "speed_mps": 1.2,
         "reserve_pct": 20,
     },
     "dog": {
@@ -55,8 +55,10 @@ TELEMETRY_CONTRACT = {
     "soc": "/zj_humanoid/chassis/charge_state",
     "odom": "/zj_humanoid/chassis/odom_info",
     "state": "/zj_humanoid/chassis/agv_state",
-    "obstacles": "/zj_humanoid/chassis/laser_scan",
-    "mode": "ROS 遥测",
+    "motor": "/zj_humanoid/chassis/motor_info",
+    "navigation": "/zj_humanoid/navigation/navigation_status",
+    "mode": "仿真遥测 · ROS1 接口参考",
+    "reference": "ZJ-Humanoid Navi02 ROS1 SDK",
 }
 
 
@@ -91,6 +93,7 @@ def enrich_resources(resources: list[dict]) -> list[dict]:
                 "max_slope_deg": profile["max_slope_deg"],
                 "min_width_m": profile["min_width_m"],
                 "speed_mps": profile["speed_mps"],
+                "simulation_speed_multiplier": 12,
                 "reserve_pct": profile["reserve_pct"],
                 "signal_percent": max(58, 96 - index * 7),
                 "last_seen_seconds": 3 + index * 2,

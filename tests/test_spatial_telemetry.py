@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from platform_app.services.planning_service import elevation_m, plan_route
-from platform_app.services.dispatch_service import interpolate_position
+from platform_app.services.dispatch_service import interpolate_position, travel_duration_seconds, path_distance_m
 from platform_app.services.telemetry_service import enrich_resources
 
 
@@ -30,6 +30,14 @@ class SpatialTelemetryTests(unittest.TestCase):
         drone = enrich_resources([{'id': 'drone-1', 'type': 'drone', 'power': '80%'}])[0]
         self.assertEqual(drone['altitude_agl_m'], 60)
         self.assertEqual(drone['position']['z'], drone['ground_elevation_m'] + 60)
+
+    def test_duration_uses_nominal_speed_and_explicit_demo_multiplier(self):
+        route = {'execution_path': [{'x': 0, 'y': 0}, {'x': 20, 'y': 0}], 'meters_per_unit': 70, 'waypoint_order': ['A']}
+        slow = travel_duration_seconds(route, {'type': 'robot', 'speed_mps': 1.2})
+        fast = travel_duration_seconds(route, {'type': 'drone', 'speed_mps': 6.0})
+        self.assertEqual(path_distance_m(route['execution_path'], 70), 1400)
+        self.assertGreater(slow, fast)
+        self.assertGreaterEqual(fast, 24)
 
 
 if __name__ == '__main__':

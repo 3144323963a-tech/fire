@@ -78,7 +78,8 @@
   },
   {
     "id": "ROBOT-01",
-    "name": "巡检机器人 01",
+    "name": "领航者 NAVIAI-WA2 · 01",
+    "vendor": "浙江人形 · NAVIAI-WA2",
     "type": "robot",
     "station": "dispatch-pool",
     "task": "待命",
@@ -89,7 +90,8 @@
   },
   {
     "id": "ROBOT-02",
-    "name": "巡检机器人 02",
+    "name": "领航者 NAVIAI-WA2 · 02",
+    "vendor": "浙江人形 · NAVIAI-WA2",
     "type": "robot",
     "station": "dispatch-pool",
     "task": "待命",
@@ -100,7 +102,8 @@
   },
   {
     "id": "ROBOT-03",
-    "name": "巡检机器人 03",
+    "name": "领航者 NAVIAI-WA1 · 01",
+    "vendor": "浙江人形 · NAVIAI-WA1",
     "type": "robot",
     "station": "dispatch-pool",
     "task": "待命",
@@ -111,7 +114,8 @@
   },
   {
     "id": "ROBOT-04",
-    "name": "巡检机器人 04",
+    "name": "领航者 NAVIAI-WA2 · 03",
+    "vendor": "浙江人形 · NAVIAI-WA2",
     "type": "robot",
     "station": "dispatch-pool",
     "task": "待命",
@@ -122,7 +126,8 @@
   },
   {
     "id": "ROBOT-05",
-    "name": "巡检机器人 05",
+    "name": "领航者 NAVIAI-WA1 · 02",
+    "vendor": "浙江人形 · NAVIAI-WA1",
     "type": "robot",
     "station": "dispatch-pool",
     "task": "待命",
@@ -133,7 +138,7 @@
   },
   {
     "id": "DOG-01",
-    "name": "机器狗 01",
+    "name": "四足巡检单元 · 01",
     "type": "dog",
     "station": "dispatch-pool",
     "task": "待命",
@@ -144,7 +149,7 @@
   },
   {
     "id": "DOG-02",
-    "name": "机器狗 02",
+    "name": "四足巡检单元 · 02",
     "type": "dog",
     "station": "dispatch-pool",
     "task": "待命",
@@ -155,7 +160,7 @@
   },
   {
     "id": "DOG-03",
-    "name": "机器狗 03",
+    "name": "四足巡检单元 · 03",
     "type": "dog",
     "station": "dispatch-pool",
     "task": "待命",
@@ -166,7 +171,7 @@
   },
   {
     "id": "DOG-04",
-    "name": "机器狗 04",
+    "name": "四足巡检单元 · 04",
     "type": "dog",
     "station": "dispatch-pool",
     "task": "待命",
@@ -177,7 +182,7 @@
   },
   {
     "id": "DOG-05",
-    "name": "机器狗 05",
+    "name": "四足巡检单元 · 05",
     "type": "dog",
     "station": "dispatch-pool",
     "task": "待命",
@@ -188,7 +193,7 @@
   },
   {
     "id": "DRONE-01",
-    "name": "无人机 01",
+    "name": "多旋翼巡检机 · 01",
     "type": "drone",
     "station": "dispatch-pool",
     "task": "待命",
@@ -199,7 +204,7 @@
   },
   {
     "id": "DRONE-02",
-    "name": "无人机 02",
+    "name": "多旋翼巡检机 · 02",
     "type": "drone",
     "station": "dispatch-pool",
     "task": "待命",
@@ -210,7 +215,7 @@
   },
   {
     "id": "DRONE-03",
-    "name": "无人机 03",
+    "name": "多旋翼巡检机 · 03",
     "type": "drone",
     "station": "dispatch-pool",
     "task": "待命",
@@ -221,7 +226,7 @@
   },
   {
     "id": "DRONE-04",
-    "name": "无人机 04",
+    "name": "多旋翼巡检机 · 04",
     "type": "drone",
     "station": "dispatch-pool",
     "task": "待命",
@@ -232,13 +237,81 @@
   },
   {
     "id": "DRONE-05",
-    "name": "无人机 05",
+    "name": "多旋翼巡检机 · 05",
     "type": "drone",
     "station": "dispatch-pool",
     "task": "待命",
     "status": "离线",
     "power": "100%",
     "protocol": "MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "ROBOT-06",
+    "name": "领航者 NAVIAI-I3 · 01",
+    "vendor": "浙江人形 · NAVIAI-I3",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "86%",
+    "protocol": "ROS1/MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "ROBOT-07",
+    "name": "领航者 NAVIAI-WA2 · 04",
+    "vendor": "浙江人形 · NAVIAI-WA2",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "68%",
+    "protocol": "ROS1/MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "DOG-06",
+    "name": "四足巡检单元 · 06",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "53%",
+    "protocol": "MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "DOG-07",
+    "name": "四足巡检单元 · 07",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "57%",
+    "protocol": "MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "DRONE-06",
+    "name": "多旋翼巡检机 · 06",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "52%",
+    "protocol": "MAVLink/MQTT",
+    "access": "边缘网关"
+  },
+  {
+    "id": "DRONE-07",
+    "name": "多旋翼巡检机 · 07",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "待命",
+    "status": "待命",
+    "power": "62%",
+    "protocol": "MAVLink/MQTT",
     "access": "边缘网关"
   }
 ]

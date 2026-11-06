@@ -363,6 +363,10 @@ def explain_block(task: dict, resources: list[dict], environment: dict) -> str:
 
 def _pack_assignment(task, resource, result, route, resolution, coverage="full", remaining=None, probability=None):
     from platform_app.services.cost_service import plan_estimate
+    estimate = plan_estimate(resource, route, result.estimated_energy_pct)
+    risk = round(max(0, 100 - float(result.score or 0)) / 100, 3)
+    quote = {"time_s": round(float(estimate["duration_seconds"])), "energy_kwh": round(float(estimate["energy_kwh"]), 3), "distance_m": round(float(estimate["distance_m"])), "risk": risk}
+    quote["total_cost"] = round(quote["time_s"] / 60 + quote["energy_kwh"] * 18 + quote["distance_m"] / 1000 * 3 + quote["risk"] * 12, 2)
     row = {
         "task_id": task.get("id"),
         "task_name": task.get("name"),
@@ -380,7 +384,8 @@ def _pack_assignment(task, resource, result, route, resolution, coverage="full",
         "task_type": task.get("type"),
         "requirements": _requirements(task),
         "route": route,
-        "cost_estimate": plan_estimate(resource, route, result.estimated_energy_pct),
+        "cost_estimate": estimate,
+        "bid_quote": quote,
     }
     if probability is not None:
         row["selection_probability"] = round(probability, 4)

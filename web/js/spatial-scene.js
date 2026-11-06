@@ -86,7 +86,7 @@
       const motion=resource.motion,path=motion?.path;
       if(!path?.length)return resource.position||{x:50,y:50,z:30};
       let cached=this.motionCache.get(path);
-      if(!cached){let total=0;const lengths=[];for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];const length=Math.hypot(b.x-a.x,b.y-a.y,((b.z??ground(b.x,b.y))-(a.z??ground(a.x,a.y)))/35);lengths.push(length);total+=length;}cached={lengths,total};this.motionCache.set(path,cached);}
+      if(!cached){let total=0;const lengths=[];const units=Number(motion.meters_per_unit)||35;for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];const length=Math.hypot(b.x-a.x,b.y-a.y,((b.z??ground(b.x,b.y))-(a.z??ground(a.x,a.y)))/units);lengths.push(length);total+=length;}cached={lengths,total};this.motionCache.set(path,cached);}
       const fraction=clamp((now-Date.parse(motion.started_at))/(Math.max(1,motion.duration_seconds)*1000),0,1);let remaining=cached.total*fraction;
       for(let i=0;i<cached.lengths.length;i++){const len=cached.lengths[i];if(remaining<=len){const a=path[i],b=path[i+1],t=len?remaining/len:0;const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};p.z=(a.z??ground(a.x,a.y))+((b.z??ground(b.x,b.y))-(a.z??ground(a.x,a.y)))*t;return p;}remaining-=len;}
       const end=path[path.length-1];return {...end,z:end.z??ground(end.x,end.y)};
@@ -130,7 +130,7 @@
       const labeled=new Set();
       assignments.forEach(a=>{
         const on=a.task_id===this.data.selectedTaskId;
-        const path=(a.route?.road_path||[]).length>1?a.route.road_path:(a.route?.path||[]);
+        const path=(a.route?.execution_path||[]).length>1?a.route.execution_path:((a.route?.road_path||[]).length>1?a.route.road_path:(a.route?.path||[]));
         if(path.length<2)return;
         const color=palette[taskIds.indexOf(a.task_id)%palette.length];
         this.line(path,'rgba(255,255,255,.94)',on?8:5);
@@ -138,7 +138,7 @@
         if(labeled.has(a.task_id))return;
         labeled.add(a.task_id);
         let meters=0;
-        for(let i=1;i<path.length;i++)meters+=Math.hypot((path[i].x-path[i-1].x)*this.meters,(path[i].y-path[i-1].y)*this.meters);
+        const units=Number(a.route?.meters_per_unit)||this.meters;for(let i=1;i<path.length;i++)meters+=Math.hypot((path[i].x-path[i-1].x)*units,(path[i].y-path[i-1].y)*units);
         const mid=path[Math.floor(path.length/2)];
         const spot=this.project(mid);
         const text=`${a.task_name||'路线'}  ${(meters/1000).toFixed(1)} km`;
@@ -149,7 +149,7 @@
         ctx.fillStyle=color;
         ctx.fillText(text,spot.x+14,spot.y-3);
       });
-      this.data.resources.forEach(r=>{if(r.motion?.path?.length>1&&['执行中','已派发','返厂中'].includes(r.status))this.line(r.motion.path,r.status==='返厂中'?'#d5814f':(colors[r.type]||'#426d89'),2.2,[5,4]);});
+      this.data.resources.forEach(r=>{if(r.motion?.path?.length>1&&['执行中','已派发','返厂中','充电中'].includes(r.status))this.line(r.motion.path,r.status==='返厂中'?'#d5814f':(colors[r.type]||'#426d89'),2.2,[5,4]);});
       const events=this.data.tasks.filter(t=>(t.name.startsWith('紧急')||t.interruption)&&t.status!=='已完成');
       events.forEach(task=>{const site=task.route?.waypoints?.[0];if(!site)return;this.badge(this.project(site),'alert',colors.alert,26);});
       this.hit=[];const units=this.visibleResources().map(r=>{const target=this.sample(r,Date.now()),previous=this.positions.get(r.id)||target,alpha=1-Math.exp(-dt*12);const p={x:previous.x+(target.x-previous.x)*alpha,y:previous.y+(target.y-previous.y)*alpha,z:(previous.z??target.z??ground(previous.x,previous.y))+((target.z??ground(target.x,target.y))-(previous.z??target.z??ground(previous.x,previous.y)))*alpha};this.positions.set(r.id,p);return {r,p,v:this.project(p)};});
