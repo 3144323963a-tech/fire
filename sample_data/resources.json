@@ -1,0 +1,222 @@
+[
+  {
+    "id": "PERSON-01",
+    "name": "\u5de1\u68c0\u5458 01",
+    "type": "person",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "N/A",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "PERSON-02",
+    "name": "\u5de1\u68c0\u5458 02",
+    "type": "person",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "N/A",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "PERSON-03",
+    "name": "\u5de1\u68c0\u5458 03",
+    "type": "person",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "N/A",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "PERSON-04",
+    "name": "\u5de1\u68c0\u5458 04",
+    "type": "person",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "N/A",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "PERSON-05",
+    "name": "\u5de1\u68c0\u5458 05",
+    "type": "person",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u79bb\u7ebf",
+    "power": "N/A",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "ROBOT-01",
+    "name": "\u5de1\u68c0\u673a\u5668\u4eba 01",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "35%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "ROBOT-02",
+    "name": "\u5de1\u68c0\u673a\u5668\u4eba 02",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "92%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "ROBOT-03",
+    "name": "\u5de1\u68c0\u673a\u5668\u4eba 03",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "73%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "ROBOT-04",
+    "name": "\u5de1\u68c0\u673a\u5668\u4eba 04",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "81%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "ROBOT-05",
+    "name": "\u5de1\u68c0\u673a\u5668\u4eba 05",
+    "type": "robot",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u79bb\u7ebf",
+    "power": "100%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DOG-01",
+    "name": "\u673a\u5668\u72d7 01",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "64%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DOG-02",
+    "name": "\u673a\u5668\u72d7 02",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "88%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DOG-03",
+    "name": "\u673a\u5668\u72d7 03",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "79%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DOG-04",
+    "name": "\u673a\u5668\u72d7 04",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "74%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DOG-05",
+    "name": "\u673a\u5668\u72d7 05",
+    "type": "dog",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u79bb\u7ebf",
+    "power": "100%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DRONE-01",
+    "name": "\u65e0\u4eba\u673a 01",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "47%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DRONE-02",
+    "name": "\u65e0\u4eba\u673a 02",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "94%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DRONE-03",
+    "name": "\u65e0\u4eba\u673a 03",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "76%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DRONE-04",
+    "name": "\u65e0\u4eba\u673a 04",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u5f85\u547d",
+    "power": "82%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  },
+  {
+    "id": "DRONE-05",
+    "name": "\u65e0\u4eba\u673a 05",
+    "type": "drone",
+    "station": "dispatch-pool",
+    "task": "\u5f85\u547d",
+    "status": "\u79bb\u7ebf",
+    "power": "100%",
+    "protocol": "MQTT",
+    "access": "\u8fb9\u7f18\u7f51\u5173"
+  }
+]

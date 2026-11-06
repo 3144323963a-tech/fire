@@ -1,0 +1,14 @@
+# Local editor and Python runtime
+.vscode/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Mutable local application state
+/platform_app/data/*.json
+/platform_app/data/.gitkeep
+
+# Logs and temporary files
+*.log
+*.tmp

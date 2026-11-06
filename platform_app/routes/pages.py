@@ -1,0 +1,17 @@
+import mimetypes
+from pathlib import Path
+
+from platform_app.config import WEB_DIR
+
+
+def resolve_static_path(url_path: str) -> Path | None:
+    relative = "index.html" if url_path in ("/", "") else url_path.lstrip("/")
+    candidate = (WEB_DIR / relative).resolve()
+    if candidate != WEB_DIR.resolve() and WEB_DIR.resolve() not in candidate.parents:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def content_type(path: Path) -> str:
+    guessed, _ = mimetypes.guess_type(path.name)
+    return guessed or "application/octet-stream"
