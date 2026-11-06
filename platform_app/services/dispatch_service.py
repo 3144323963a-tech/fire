@@ -1,14 +1,26 @@
 """Dispatch validation and one-pass simulated inspections."""
 import json
+import random
 from datetime import datetime,timezone
 from threading import RLock
 from platform_app.config import DISPATCHES_FILE,SAMPLE_DATA_DIR
 from platform_app.services.sample_data_service import get_overview
+from platform_app.services.planning_service import evaluate_candidate, field_resolution, propose_for_resource
+from platform_app.services.planning_service import elevation_m
+from math import hypot
 def U(h):
  h=h.replace(" ","")
  return "".join(chr(int(h[i:i+4],16)) for i in range(0,len(h),4))
-_lock=RLock();TASK_TYPE_FOR_RESOURCE={"robot":"robot","dog":"robot","drone":"drone","person":"team"};SIMULATION_DURATION_SECONDS=900
+_lock=RLock();TASK_TYPE_FOR_RESOURCE={"robot":"robot","dog":"robot","drone":"drone","person":"team"};SIMULATION_DURATION_SECONDS=120
 PENDING=U("5f858c035ea6");READY=U("5f85547d");ONLINE=U("57287ebf");SENT=U("5df26d3e53d1");RUNNING=U("6267884c4e2d");DONE=U("5df25b8c6210")
+RETURNING="返厂中";MAINTENANCE="待检修";RETURN_SECONDS=45
+INCIDENT_REASONS=("电量异常", "传感器故障", "通信不稳定")
+
+def _save_dispatches(history):
+ DISPATCHES_FILE.parent.mkdir(parents=True,exist_ok=True)
+ temp=DISPATCHES_FILE.with_suffix(".tmp")
+ temp.write_text(json.dumps(history,ensure_ascii=False,indent=2)+chr(10),encoding="utf-8")
+ temp.replace(DISPATCHES_FILE)
 def list_dispatches():
  with _lock:
   if not DISPATCHES_FILE.exists(): return []
@@ -17,46 +29,148 @@ def list_dispatches():
   if not isinstance(value,list): raise RuntimeError("dispatch history must be an array")
   return value
 def dispatch_state(row,now=None):
+ if row.get("incident_at"):
+  started=datetime.fromisoformat(row["incident_at"].replace("Z","+00:00"))
+  elapsed=((now or datetime.now(timezone.utc))-started).total_seconds()
+  return RETURNING if elapsed<int(row.get("return_duration_seconds",RETURN_SECONDS)) else MAINTENANCE
  if row.get("status")!=SENT:return row.get("status",SENT)
  try: started=datetime.fromisoformat(row["created_at"].replace("Z","+00:00"))
  except (KeyError,ValueError):return RUNNING
  elapsed=max(0,((now or datetime.now(timezone.utc))-started).total_seconds())
  return DONE if elapsed>=int(row.get("simulation_duration_seconds",SIMULATION_DURATION_SECONDS)) else RUNNING
-def active_dispatches():return [x for x in list_dispatches() if dispatch_state(x) in (SENT,RUNNING)]
+def active_dispatches():return [x for x in list_dispatches() if dispatch_state(x) in (SENT,RUNNING,RETURNING)]
+
+def trigger_random_incident(resource_id=None, reason=None):
+ with _lock:
+  history=list_dispatches()
+  active=[row for row in history if dispatch_state(row) in (SENT,RUNNING) and (resource_id is None or row.get("resource_id")==resource_id)]
+  if not active:raise ValueError("当前没有可中断的执行任务")
+  row=random.choice(active)
+  row['resource_type']=row.get('resource_type') or ('drone' if str(row.get('resource_id','')).startswith('DRONE') else 'robot')
+  now=datetime.now(timezone.utc)
+  position=interpolate_position(row,now)
+  path=dispatch_path(row)
+  if not position or not path:raise ValueError("设备缺少返厂路线")
+  nearest=min(range(len(path)),key=lambda i:((path[i]['x']-position['x'])**2+(path[i]['y']-position['y'])**2+((path[i].get('z',0)-position.get('z',0))/35)**2))
+  row["return_route"]={"path":[position,*reversed(path[:nearest+1])],"algorithm":"原巡检路线回溯"}
+  row["incident_at"]=now.isoformat(timespec="seconds")
+  row["incident_reason"]=reason or random.choice(INCIDENT_REASONS)
+  row["return_duration_seconds"]=RETURN_SECONDS
+  row["interrupted_progress"]=dispatch_progress(row,now)
+  _save_dispatches(history)
+  return {"task_id":row["task_id"],"task_name":row["task_name"],"resource_id":row["resource_id"],"resource_name":row["resource_name"],"reason":row["incident_reason"],"state":RETURNING,"occurred_at":row["incident_at"]}
+
+def recent_incidents():
+ return [{"task_id":row.get("task_id"),"task_name":row.get("task_name"),"resource_id":row.get("resource_id"),"resource_name":row.get("resource_name"),"reason":row.get("incident_reason"),"state":dispatch_state(row),"return_route":row.get("return_route"),"incident_at":row.get("incident_at"),"return_duration_seconds":row.get("return_duration_seconds",RETURN_SECONDS),"position":interpolate_position(row)} for row in list_dispatches() if row.get("incident_at")][:5]
 def create_dispatch(payload,tasks):
  tid=str(payload.get("task_id","")).strip();rid=str(payload.get("resource_id","")).strip();task=next((x for x in tasks if x.get("id")==tid),None)
  if not task:raise ValueError("Task not found")
- if task.get("status") not in (PENDING,U("5f856d5353d1")):raise ValueError("Task is already dispatched or completed")
- resource=next((x for x in get_overview().get("resources",[]) if x.get("id")==rid),None)
+ if task.get("status") not in (PENDING,"待派发",SENT,RUNNING):raise ValueError("Task is already dispatched or completed")
+ overview=get_overview();resource=next((x for x in overview.get("resources",[]) if x.get("id")==rid),None)
  if not resource:raise ValueError("Resource not found")
  if resource.get("status") not in (READY,ONLINE):raise ValueError("Resource is not available")
- if TASK_TYPE_FOR_RESOURCE.get(resource.get("type"))!=task.get("type"):raise ValueError("Resource type does not match task")
  if resource.get("station")!=task.get("station"):raise ValueError("Resource and task must belong to the same station")
- row={"task_id":tid,"task_name":task["name"],"resource_id":rid,"resource_name":resource["name"],"status":SENT,"created_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),"simulation_duration_seconds":SIMULATION_DURATION_SECONDS}
+ proposal=propose_for_resource(task,resource,overview.get("environment",{}))
+ if not proposal:
+  suitability=evaluate_candidate(task,resource,overview.get("environment",{}))
+  raise ValueError("Resource rejected: "+("; ".join(suitability.rejected_by) or "无法规划到达检查点的路线"))
+ suitability=proposal["result"];route=proposal["route"]
+ reserve=int(resource.get("reserve_pct") or 0)
+ margin=8 if suitability.battery_after_pct is not None and suitability.battery_after_pct<reserve else reserve
+ row={"task_id":tid,"task_name":task["name"],"resource_id":rid,"resource_name":resource["name"],"status":SENT,"created_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),"simulation_duration_seconds":SIMULATION_DURATION_SECONDS,"planned_route":route,"initial_power_percent":resource.get("power_percent"),"estimated_energy_pct":suitability.estimated_energy_pct,"return_margin_pct":margin,"resolution":field_resolution(task,resource,suitability,proposal["remaining"])}
+ row['resource_type']=resource.get('type')
+ row['consumption_factor']=round(.9+(sum(map(ord,rid))%5)*.05,2)
  with _lock:
   history=list_dispatches();active=active_dispatches()
   if any(x.get("resource_id")==rid for x in active):raise ValueError("Resource already has an active task")
-  if any(x.get("task_id")==tid for x in active):raise ValueError("Task has already been dispatched")
-  history.insert(0,row);DISPATCHES_FILE.parent.mkdir(parents=True,exist_ok=True);temp=DISPATCHES_FILE.with_suffix(".tmp")
-  temp.write_text(json.dumps(history,ensure_ascii=False,indent=2)+chr(10),encoding="utf-8");temp.replace(DISPATCHES_FILE)
+  if any(x.get("task_id")==tid and x.get("resource_id")==rid and dispatch_state(x)!=RETURNING for x in active):raise ValueError("Resource already has an active task")
+  history.insert(0,row);_save_dispatches(history)
  return row
 def overlay_dispatches(tasks):
- by_task={x["task_id"]:x for x in list_dispatches()}
+ grouped={}
+ for row in list_dispatches():
+  grouped.setdefault(row.get("task_id"), []).append(row)
  for task in tasks:
-  row=by_task.get(task.get("id"))
-  if not row:continue
-  state=dispatch_state(row);task["status"]=state;task["executor"]=row["resource_name"];task["dispatch_started_at"]=row.get("created_at","");task["simulation_duration_seconds"]=int(row.get("simulation_duration_seconds",SIMULATION_DURATION_SECONDS))
+  rows=grouped.get(task.get("id")) or []
+  if not rows:continue
+  active=[row for row in rows if not row.get("incident_at") and dispatch_state(row) in (SENT,RUNNING,RETURNING)]
+  row=active[0] if active else rows[0]
+  if not active and row.get("incident_at"):
+   task["status"]=PENDING;task["executor"]="";task["progress"]="0%";task["interruption"]={"reason":row["incident_reason"],"resource_name":row["resource_name"]}
+   task.pop("planned_route",None)
+   continue
+  names=[]
+  for item in active or [row]:
+   if item.get("resource_name") and item["resource_name"] not in names:names.append(item["resource_name"])
+  state=dispatch_state(row);task["status"]=state;task["executor"]="、".join(names);task["dispatch_started_at"]=row.get("created_at","");task["simulation_duration_seconds"]=int(row.get("simulation_duration_seconds",SIMULATION_DURATION_SECONDS));task["planned_route"]=row.get("planned_route")
   if state==DONE:task["progress"]="100%"
   elif state==RUNNING:
    started=datetime.fromisoformat(row["created_at"].replace("Z","+00:00"));elapsed=max(0,(datetime.now(timezone.utc)-started).total_seconds());task["progress"]=str(min(99,int(elapsed/task["simulation_duration_seconds"]*100)))+"%"
   else:task["progress"]="0%"
  return tasks
 def resources_with_dispatches(resources):
- active={x["resource_id"]:x for x in active_dispatches()}
+ history=list_dispatches();latest={x["resource_id"]:x for x in reversed(history) if x.get("resource_id")}
+ active={x["resource_id"]:x for x in reversed(history) if x.get("resource_id") and dispatch_state(x) in (SENT,RUNNING,RETURNING)}
  for resource in resources:
-  row=active.get(resource.get("id"))
-  if row:resource["status"]=RUNNING;resource["task"]=row.get("task_name","")
+  row=active.get(resource.get("id")) or latest.get(resource.get("id"))
+  if row:
+   state=dispatch_state(row)
+   if resource.get("id") in active:resource["status"]=state;resource["task"]="返厂" if state==RETURNING else row.get("task_name","");resource["dispatch_note"]=row.get("resolution") or ""
+   elif state==MAINTENANCE:resource["status"]=MAINTENANCE;resource["task"]="待检修"
+   position=interpolate_position(row)
+   if position is not None:resource["position"]=position
+   resource['motion']={'path':dispatch_path(row), 'started_at':row.get('incident_at') or row.get('created_at'), 'duration_seconds':row.get('return_duration_seconds',RETURN_SECONDS) if row.get('incident_at') else row.get('simulation_duration_seconds',SIMULATION_DURATION_SECONDS)}
+   initial=row.get("initial_power_percent")
+   if initial is not None:
+    from platform_app.services.cost_service import execution_metrics, CAPACITY_KWH
+    metric=execution_metrics(row)
+    resource['energy_used_kwh']=round(metric['used']['energy_kwh'],6)
+    capacity=CAPACITY_KWH.get(resource.get('type'),0)
+    used_pct=metric['used']['energy_kwh']/capacity*100 if capacity else 0
+    resource["power_percent"]=max(0,round(initial-used_pct,2))
+    resource["power"]=f'{resource["power_percent"]}%'
+  position=resource.get('position') or {'x':50,'y':50}
+  ground=elevation_m(position['x'],position['y'])
+  position.setdefault('z',ground)
+  resource['ground_elevation_m']=ground
+  resource['altitude_agl_m']=round(max(0,position['z']-ground),2)
  return resources
+
+def dispatch_path(row):
+ returning=bool(row.get('incident_at'))
+ path=((row.get('return_route') if returning else row.get('planned_route')) or {}).get('path') or []
+ if not path:return []
+ if any('z' in point for point in path):return path
+ if row.get('resource_type')=='drone' or str(row.get('resource_id','')).startswith('DRONE'):
+  ground=[{**p,'z':elevation_m(p['x'],p['y'])} for p in path]
+  flight=[{**p,'z':p['z']+60} for p in ground]
+  return [ground[0],*flight,ground[-1]]
+ return [{**p,'z':p.get('elevation_m',elevation_m(p['x'],p['y']))} for p in path] if any('elevation_m' in p for p in path) else path
+
+def dispatch_progress(row,now=None):
+ try: started=datetime.fromisoformat(row["created_at"].replace("Z","+00:00"))
+ except (KeyError,ValueError):return 0.0
+ duration=max(1,int(row.get("simulation_duration_seconds") or SIMULATION_DURATION_SECONDS))
+ return min(1.0,max(0.0,((now or datetime.now(timezone.utc))-started).total_seconds()/duration))
+
+def interpolate_position(row,now=None):
+ returning=bool(row.get("incident_at"))
+ path=dispatch_path(row)
+ if not path:return None
+ lengths=[((b['x']-a['x'])**2+(b['y']-a['y'])**2+((b.get('z',0)-a.get('z',0))/35)**2)**.5 for a,b in zip(path,path[1:])]
+ if returning:
+  started=datetime.fromisoformat(row["incident_at"].replace("Z","+00:00"))
+  progress=min(1.0,max(0.0,((now or datetime.now(timezone.utc))-started).total_seconds()/max(1,int(row.get("return_duration_seconds",RETURN_SECONDS)))))
+ else:progress=dispatch_progress(row,now)
+ remaining=sum(lengths)*progress
+ for a,b,length in zip(path,path[1:],lengths):
+  if remaining<=length:
+   t=remaining/length if length else 0
+   point={"x":round(a["x"]+(b["x"]-a["x"])*t,3),"y":round(a["y"]+(b["y"]-a["y"])*t,3)}
+   if 'z' in a or 'z' in b:point['z']=round(a.get('z',0)+(b.get('z',0)-a.get('z',0))*t,3)
+   return point
+  remaining-=length
+ return dict(path[-1])
 
 
 def reset_dispatch_history():
