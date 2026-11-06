@@ -9,15 +9,18 @@
     constructor(host){
       this.host=host;this.canvas=host.querySelector('canvas');this.ctx=this.canvas.getContext('2d');
       this.data={resources:[],tasks:[],incidents:[],plan:null};this.positions=new Map();this.motionCache=new WeakMap();this.births=new Map();this.selected=null;
-      this.zoom=1.9;this.defaultZoom=1.9;this.mode='road';this.showAll=false;this.tiles=new Map();this.panX=0;this.panY=0;this.hit=[];this.last=0;this.mouse=null;
+      this.zoom=1.9;this.defaultZoom=1.9;this.mode='road';this.showAll=false;this.locked=false;this.tiles=new Map();this.panX=0;this.panY=0;this.hit=[];this.last=0;this.mouse=null;
       this.icons={};Object.entries(ICON_SRC).forEach(([key,src])=>{const image=new Image();image.src=src;this.icons[key]=image;});
       this.centerLat=30.3165737;this.centerLon=120.3479082;this.meters=70;
       this.resize=new ResizeObserver(()=>this.measure());this.resize.observe(host);this.measure();
       this.canvas.addEventListener('pointerdown',e=>{this.drag={x:e.clientX,y:e.clientY,moved:false};this.canvas.setPointerCapture(e.pointerId);});
-      this.canvas.addEventListener('pointermove',e=>{const r=this.canvas.getBoundingClientRect();this.mouse={x:e.clientX-r.left,y:e.clientY-r.top};if(!this.drag)return;const dx=e.clientX-this.drag.x,dy=e.clientY-this.drag.y;this.drag.moved=this.drag.moved||Math.abs(dx)+Math.abs(dy)>2;this.panX+=dx;this.panY+=dy;this.drag.x=e.clientX;this.drag.y=e.clientY;});
+      this.canvas.addEventListener('pointermove',e=>{const r=this.canvas.getBoundingClientRect();this.mouse={x:e.clientX-r.left,y:e.clientY-r.top};if(!this.drag)return;const dx=e.clientX-this.drag.x,dy=e.clientY-this.drag.y;this.drag.moved=this.drag.moved||Math.abs(dx)+Math.abs(dy)>2;if(this.drag.moved)this.setLocked(false);this.panX+=dx;this.panY+=dy;this.drag.x=e.clientX;this.drag.y=e.clientY;});
       this.canvas.addEventListener('pointerup',()=>{if(!this.drag?.moved&&this.mouse){const hit=this.hit.filter(p=>Math.hypot(p.x-this.mouse.x,p.y-this.mouse.y)<18).sort((a,b)=>Math.hypot(a.x-this.mouse.x,a.y-this.mouse.y)-Math.hypot(b.x-this.mouse.x,b.y-this.mouse.y))[0];const select=this.host.querySelector('[data-device-select]');if(hit&&select){this.selected=hit.id;select.value=hit.id;}}this.drag=null;});
       this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.zoom=clamp(this.zoom*Math.exp(-e.deltaY*.001),1.15,4);},{passive:false});
       host.querySelector('[data-view-reset]').onclick=()=>{this.zoom=this.defaultZoom;this.panX=0;this.panY=0;};
+      host.querySelector('[data-zoom-in]').onclick=()=>this.zoom=clamp(this.zoom*1.2,1.15,4);
+      host.querySelector('[data-zoom-out]').onclick=()=>this.zoom=clamp(this.zoom/1.2,1.15,4);
+      host.querySelector('[data-lock-device]').onclick=()=>this.setLocked(!this.locked);
       host.querySelector('[data-show-all]').onclick=()=>{this.showAll=!this.showAll;const button=host.querySelector('[data-show-all]');button.classList.toggle('active',this.showAll);button.textContent=this.showAll?'收起':'全部';this.refreshCount();};
       host.querySelector('[data-view-3d]').onclick=()=>this.setMode('road');
       host.querySelector('[data-view-satellite]').onclick=()=>this.setMode('satellite');
@@ -26,6 +29,7 @@
       this.setMode('road');
       this.frame=this.frame.bind(this);this.raf=requestAnimationFrame(this.frame);
     }
+    setLocked(value){this.locked=Boolean(value);const button=this.host.querySelector('[data-lock-device]');if(button){button.classList.toggle('active',this.locked);button.textContent=this.locked?'已锁定设备':'锁定设备';}}
     measure(){const rect=this.host.querySelector('.space-map').getBoundingClientRect();this.w=rect.width;this.h=rect.height;const dpr=Math.min(devicePixelRatio||1,2);this.canvas.width=this.w*dpr;this.canvas.height=this.h*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);}
     update(data){
       const previous=new Set(this.data.tasks.map(t=>t.id));this.data=data;
@@ -162,6 +166,7 @@
         if(!this.showAll||chosen)this.tag([`${r.name}  ${r.status}`,`${power} · 海拔 ${Math.round(demoZ)}m`].reverse(),p);
         if(chosen){const geo=this.sceneToLonLat(p.x,p.y);this.host.querySelector('[data-device-readout]').textContent=`${r.name}  ${r.status}   经度 ${geo.lon.toFixed(5)}  纬度 ${geo.lat.toFixed(5)}  海拔 ${demoZ.toFixed(1)} m`;}
       });
+      if(this.locked){const chosen=units.find(unit=>unit.r.id===this.selected);if(chosen){this.panX+=(this.w/2-chosen.v.x)*.14;this.panY+=(this.h/2-chosen.v.y)*.14;}}
       this.paintAltitude();
     }
     badge(v,key,ring,size,chosen=false){const ctx=this.ctx,image=this.icons[key];ctx.save();ctx.translate(v.x,v.y);ctx.beginPath();ctx.fillStyle='rgba(255,255,255,.94)';ctx.arc(0,0,size*.58,0,Math.PI*2);ctx.fill();ctx.strokeStyle=chosen?'#264a5d':ring;ctx.lineWidth=chosen?1.6:1.2;ctx.stroke();if(image&&image.complete&&image.naturalWidth)ctx.drawImage(image,-size/2,-size/2,size,size);ctx.restore();}
