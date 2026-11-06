@@ -1,8 +1,9 @@
-"""Example network that scores which devices should take a task.
+"""Constraint-masked policy scorer for simulated dispatch.
 
-The weights are fixed. This is not a trained model and it does not call an
-external API. Hard limits (offline, maintenance, missing capability, drone
-weather) are applied before the network and cannot be overridden.
+The small network below has fixed demonstration weights: it is deliberately
+labelled as a policy score, not a trained RL model.  Feasibility is decided
+first by the rule layer; the policy can only rank feasible candidates.  This
+keeps the same action-mask contract needed by a future trained DCMRTA policy.
 """
 
 from __future__ import annotations
@@ -39,7 +40,30 @@ HIDDEN_BIAS = (-5.2, 2.2, -4.0, -11.2)
 OUTPUT_WEIGHTS = (1.8, 1.6, 2.6, 3.4)
 OUTPUT_BIAS = -6.15
 THRESHOLD = 0.80
-MAX_TEAM = 2
+SUPPORT_FLOOR = 0.60
+MAX_TEAM = 4
+
+
+def feasibility_mask(resource: dict, result, used_ids: set[str] | None = None) -> dict[str, bool]:
+    """Return named hard constraints; True means the action is unavailable.
+
+    A robot task may be served by a four-legged unit in this simulator. All
+    other evaluation rejections are hard constraints and must have zero
+    selection probability.
+    """
+    used_ids = used_ids or set()
+    rejected = set(result.rejected_by)
+    dog_substitution = resource.get("type") == "dog" and rejected == {"设备类型与任务不匹配"}
+    return {
+        "busy_or_offline": "设备非空闲或不在线" in rejected,
+        "already_reserved": resource.get("id") in used_ids,
+        "wrong_station": "设备不在任务场站" in rejected,
+        "type": "设备类型与任务不匹配" in rejected and not dog_substitution,
+        "capability": any(reason.startswith("缺少能力") for reason in rejected),
+        "terrain": any(reason.startswith("不支持") or reason in {"最大爬坡角不足", "所需通道宽度不足"} for reason in rejected),
+        "weather_or_airspace": any(reason.startswith(prefix) for reason in rejected for prefix in ("风速", "降水", "当前空域")),
+        "energy_return_reserve": any(reason.startswith("电量不足") for reason in rejected),
+    }
 
 
 def _sigmoid(value: float) -> float:
@@ -80,16 +104,19 @@ def forward(features: list[float]) -> float:
     return _sigmoid(logit)
 
 
-def hard_reasons(resource: dict, result) -> list[str]:
-    blocked = []
-    for reason in result.rejected_by:
-        if reason in {"设备非空闲或不在线", "设备不在任务场站"} or reason.startswith("缺少能力"):
-            blocked.append(reason)
-        elif resource.get("type") == "drone" and (
-            reason.startswith("风速") or reason.startswith("降水") or reason.startswith("当前空域")
-        ):
-            blocked.append(reason)
-    return blocked
+def hard_reasons(resource: dict, result, used_ids: set[str] | None = None) -> list[str]:
+    mask = feasibility_mask(resource, result, used_ids)
+    labels = {
+        "busy_or_offline": "设备非空闲或不在线",
+        "already_reserved": "已分配给其他任务",
+        "wrong_station": "设备不在任务场站",
+        "type": "设备类型与任务不匹配",
+        "capability": next((x for x in result.rejected_by if x.startswith("缺少能力")), "缺少任务能力"),
+        "terrain": next((x for x in result.rejected_by if x.startswith("不支持") or x in {"最大爬坡角不足", "所需通道宽度不足"}), "地形不可通行"),
+        "weather_or_airspace": next((x for x in result.rejected_by if x.startswith(("风速", "降水", "当前空域"))), "天气或空域不可用"),
+        "energy_return_reserve": next((x for x in result.rejected_by if x.startswith("电量不足")), "返场电量不足"),
+    }
+    return [labels[key] for key, blocked in mask.items() if blocked]
 
 
 def score_candidates(task: dict, resources: list[dict], environment: dict, used_ids: set[str] | None = None) -> list[dict]:
@@ -97,27 +124,109 @@ def score_candidates(task: dict, resources: list[dict], environment: dict, used_
     scored = []
     for resource in resources:
         result = evaluate_candidate(task, resource, environment)
-        blocked = hard_reasons(resource, result)
-        if resource.get("id") in used_ids:
-            blocked.append("已分配给其他任务")
+        mask = feasibility_mask(resource, result, used_ids)
+        blocked = hard_reasons(resource, result, used_ids)
         features = feature_vector(task, resource, environment, result)
         probability = 0.0 if blocked else forward(features)
+        # The fixed policy ranks only feasible actions; the explicit score
+        # keeps route proximity and post-task battery visible to operators.
+        priority = min(1.0, max(0.0, float(task.get("priority") or 0) / 5))
+        rank = 0.0 if blocked else round(0.62 * probability + 0.33 * (float(result.score) / 100) + 0.05 * priority, 6)
         scored.append(
             {
                 "resource": resource,
                 "result": result,
                 "probability": probability,
                 "hard_blocked": blocked,
+                "mask": mask,
                 "features": features,
+                "policy_source": "fixed_policy_demo",
+                "rank": rank,
             }
         )
     return scored
 
 
-def choose_team(task: dict, resources: list[dict], environment: dict, used_ids: set[str] | None = None) -> list[dict]:
-    eligible = [row for row in score_candidates(task, resources, environment, used_ids) if not row["hard_blocked"]]
-    eligible.sort(key=lambda row: (-row["probability"], str(row["resource"].get("id"))))
-    return [row for row in eligible if row["probability"] >= THRESHOLD][:MAX_TEAM]
+def crew_size(task: dict, environment: dict) -> int:
+    """How many devices this task needs, from its own conditions."""
+    requirements = task.get("requirements") or {}
+    weather = (environment or {}).get("weather") or {}
+    wind = float(weather.get("wind_mps") or 0)
+    precip = float(weather.get("precipitation_mm") or 0)
+    waypoints = (task.get("route") or {}).get("waypoints") or []
+    urgent = str(task.get("name") or "").startswith("紧急") or bool(task.get("interruption"))
+    terrain = requirements.get("terrain") or "flat"
+    if task.get("type") == "drone":
+        max_wind = float(requirements.get("max_wind_mps") or 8)
+        tight_air = precip > 0 or not (environment or {}).get("flight_allowed", True) or wind > max_wind * 0.7
+        if tight_air or len(waypoints) < 2:
+            return 1
+        return 2
+    if task.get("type") == "team":
+        return 3 if urgent else 2
+    size = 2
+    if terrain in {"stairs", "rough"} or urgent or len(waypoints) >= 3:
+        size = 3
+    return min(size, MAX_TEAM)
+
+
+def choose_team(task: dict, resources: list[dict], environment: dict, used_ids: set[str] | None = None, floor: float = SUPPORT_FLOOR) -> list[dict]:
+    ranked = [row for row in score_candidates(task, resources, environment, used_ids) if not row["hard_blocked"]]
+    ranked.sort(key=lambda row: (-row["rank"], -row["probability"], str(row["resource"].get("id"))))
+    primary = [row for row in ranked if row["probability"] >= THRESHOLD]
+    limit = crew_size(task, environment)
+    picked = []
+    seen_types = set()
+    for row in primary:
+        kind = row["resource"].get("type")
+        if kind in seen_types:
+            continue
+        picked.append(row)
+        seen_types.add(kind)
+        if len(picked) >= limit:
+            return picked
+    for row in primary:
+        if row in picked:
+            continue
+        picked.append(row)
+        if len(picked) >= limit:
+            return picked
+    for row in ranked:
+        if row in picked or row["probability"] < floor:
+            continue
+        picked.append(row)
+        if len(picked) >= limit:
+            break
+    return picked
+
+
+def suggest_schemes(task: dict, resources: list[dict], environment: dict, used_ids: set[str] | None = None, limit: int = 3) -> list[dict]:
+    """Highest-scoring distinct crews for one task. The first crew is the one to send."""
+    taken = set(used_ids or [])
+    schemes = []
+    floors = (SUPPORT_FLOOR, 0.45, 0.35)
+    for index in range(limit):
+        team = choose_team(task, resources, environment, taken, floors[min(index, len(floors) - 1)])
+        if not team:
+            break
+        score = round(sum(row["rank"] for row in team) / len(team) * 100, 1)
+        schemes.append(
+            {
+                "score": score,
+                "members": [
+                    {
+                        "id": row["resource"].get("id"),
+                        "name": row["resource"].get("name"),
+                        "type": row["resource"].get("type"),
+                        "score": round(row["rank"] * 100, 1),
+                    }
+                    for row in team
+                ],
+            }
+        )
+        taken.update(row["resource"].get("id") for row in team)
+    schemes.sort(key=lambda item: (-item["score"], -len(item["members"])))
+    return schemes
 
 
 def team_reason(picks: list[dict], environment: dict) -> str:
@@ -131,5 +240,7 @@ def team_reason(picks: list[dict], environment: dict) -> str:
     if any(row["resource"].get("type") == "drone" for row in picks) and wind >= 3:
         battery_note = "有风，只留下电量足够的无人机"
     elif len(picks) == 1:
-        battery_note = "其余设备电量或地形概率不够，只出任一台"
+        battery_note = "现场只留得下一台"
+    elif len({row["resource"].get("type") for row in picks}) == 1 and len(picks) > 1:
+        battery_note = "同一类里再补能上去的"
     return f"调度判断：风速 {wind:.1f} m/s，降水 {precip:.0f} mm，{flight}。{terrain_note}，{battery_note}。出任 {names}。"

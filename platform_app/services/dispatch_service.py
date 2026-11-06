@@ -223,6 +223,12 @@ def interpolate_position(row,now=None):
  return dict(path[-1])
 
 
+def clear_dispatches():
+    with _lock:
+        DISPATCHES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        DISPATCHES_FILE.write_text("[]" + chr(10), encoding="utf-8")
+
+
 def reset_dispatch_history():
     with _lock:
         DISPATCHES_FILE.parent.mkdir(parents=True, exist_ok=True)

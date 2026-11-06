@@ -55,6 +55,27 @@ def dispatch_waiting():
             auto_assign(task['id'])
 
 
+def start_demo_round():
+    """Restart the scripted round. Each browser refresh begins the same tasks again."""
+    from platform_app.services.task_service import clear_runtime_tasks
+    from platform_app.services.sample_data_service import get_overview
+    from platform_app.services.dispatch_service import clear_dispatches
+
+    clear_dispatches()
+    clear_runtime_tasks()
+    tasks = list_tasks()
+    overview = get_overview()
+    plan = build_v1_plan(tasks, overview["resources"], overview["environment"])
+    sent = []
+    failed = []
+    for item in plan.get("assignments") or []:
+        try:
+            sent.append(create_dispatch({"task_id": item["task_id"], "resource_id": item["resource_id"]}, list_tasks()))
+        except ValueError as exc:
+            failed.append(f"{item.get('resource_name')}: {exc}")
+    return {"started": len(sent), "devices": [row.get("resource_name") for row in sent], "failed": failed, "schemes": plan.get("schemes") or []}
+
+
 def emergency_event(task_type=None):
     task = create_emergency_task(task_type)
     return {**task, 'occurred_at': task['created_at'], **auto_assign(task['id'])}

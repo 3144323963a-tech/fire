@@ -9,7 +9,7 @@ from platform_app.routes.tasks import handle_dispatch, handle_feedback, handle_n
 from platform_app.services.ai_dispatch_service import create_ai_dispatch_plan
 from platform_app.services.dispatch_service import reset_dispatch_history, trigger_random_incident
 from platform_app.services.task_service import create_emergency_task
-from platform_app.services.simulation_service import emergency_event, fault_event, dispatch_waiting
+from platform_app.services.simulation_service import emergency_event, fault_event, dispatch_waiting, start_demo_round
 
 
 class PlatformHandler(BaseHTTPRequestHandler):
@@ -36,7 +36,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
-        if path not in ("/api/tasks", "/api/dispatch", "/api/feedback", "/api/ai/dispatch-plan", "/api/simulation/reset", "/api/simulation/incident", "/api/simulation/emergency-task"):
+        if path not in ("/api/tasks", "/api/dispatch", "/api/feedback", "/api/ai/dispatch-plan", "/api/simulation/reset", "/api/simulation/demo", "/api/simulation/incident", "/api/simulation/emergency-task"):
             return self._send_json(404, {"error": "Not found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -48,6 +48,11 @@ class PlatformHandler(BaseHTTPRequestHandler):
         if path == "/api/simulation/reset":
             reset_dispatch_history()
             return self._send_json(200, {"ok": True})
+        if path == "/api/simulation/demo":
+            try:
+                return self._send_json(200, start_demo_round())
+            except (RuntimeError, ValueError, OSError) as exc:
+                return self._send_json(400, {"error": str(exc)})
         if path == "/api/simulation/emergency-task":
             try:
                 payload=json.loads(body.decode('utf-8')) if body else {}
