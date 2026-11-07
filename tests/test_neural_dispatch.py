@@ -1,6 +1,6 @@
 import unittest
 
-from platform_app.services.neural_dispatch import choose_team, feature_vector, forward
+from platform_app.services.neural_dispatch import choose_team, feature_vector, forward, score_candidates, suggest_schemes
 from platform_app.services.planning_service import evaluate_candidate
 from platform_app.services.sample_data_service import list_sample_tasks
 from platform_app.services.telemetry_service import enrich_resources
@@ -36,6 +36,10 @@ class NeuralDispatchTests(unittest.TestCase):
         ]
         team = [row["resource"]["id"] for row in choose_team(FLAT, resources, CALM)]
         self.assertEqual(team, ["ROBOT-HI", "DOG-HI"])
+        schemes = suggest_schemes(FLAT, resources, CALM)
+        self.assertGreaterEqual(len(schemes), 1)
+        self.assertEqual([member["id"] for member in schemes[0]["members"]], ["ROBOT-HI", "DOG-HI"])
+        self.assertEqual(schemes, sorted(schemes, key=lambda item: -item["score"]))
 
     def test_wind_blocks_drones_and_low_battery_leaves_one_ground_unit(self):
         task = {
@@ -66,6 +70,13 @@ class NeuralDispatchTests(unittest.TestCase):
         self.assertEqual(round(forward(features), 6), round(forward(list(features)), 6))
         self.assertGreater(forward(features), 0.9)
 
+    def test_energy_and_terrain_are_hard_masked(self):
+        low = _resource("ROBOT-LOW", "robot", "10%")
+        blocked = score_candidates(FLAT, [low], CALM)[0]
+        self.assertEqual(blocked["probability"], 0)
+        self.assertTrue(blocked["mask"]["energy_return_reserve"])
+        self.assertTrue(any("电量不足" in reason for reason in blocked["hard_blocked"]))
+
     def test_sample_tasks_include_a_pair_and_a_single_drone(self):
         resources = enrich_resources(read_sample_file("resources.json"))
         environment = {"flight_allowed": True, "weather": {"wind_mps": 3.2, "precipitation_mm": 0}}
@@ -73,7 +84,10 @@ class NeuralDispatchTests(unittest.TestCase):
         yard = [row["resource"]["id"] for row in choose_team(tasks["xiasha-road"], resources, environment)]
         aerial = [row["resource"]["id"] for row in choose_team(tasks["xiasha-roof"], resources, environment)]
         self.assertEqual(yard, ["ROBOT-02", "DOG-02"])
-        self.assertEqual(aerial, ["DRONE-02"])
+        self.assertEqual(aerial, ["DRONE-02", "DRONE-04"])
+        gas = [row["resource"]["id"] for row in choose_team(tasks["xiasha-gas"], resources, environment)]
+        self.assertGreaterEqual(len(gas), 2)
+        self.assertTrue(all(item.startswith("DOG-") for item in gas))
 
 
 if __name__ == "__main__":

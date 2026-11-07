@@ -64,6 +64,17 @@ class PlanningServiceTests(unittest.TestCase):
                "planned_route": {"path": [{"x": 0, "y": 0}, {"x": 10, "y": 0}]}}
         self.assertEqual(interpolate_position(row, now), {"x": 5.0, "y": 0.0})
 
+    def test_plan_keeps_two_ready_machines_of_each_type(self):
+        plan = build_v1_plan(self.tasks, self.overview["resources"], self.overview["environment"])
+        counts = {}
+        for row in plan["standby"]:
+            counts[row["type"]] = counts.get(row["type"], 0) + 1
+        for kind in ("robot", "dog", "drone", "person"):
+            self.assertGreaterEqual(counts.get(kind, 0), 2, kind)
+        self.assertEqual(plan["unassigned_task_ids"], [])
+        gas = [row["resource_id"] for row in plan["assignments"] if row["task_id"] == "xiasha-gas"]
+        self.assertGreaterEqual(len(gas), 2)
+
     def test_plan_assigns_unique_resources_and_routes_every_task(self):
         plan = build_v1_plan(self.tasks, self.overview["resources"], self.overview["environment"])
         resource_ids = [row["resource_id"] for row in plan["assignments"]]

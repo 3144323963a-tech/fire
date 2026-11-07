@@ -8,6 +8,7 @@ from math import hypot
 
 
 AVAILABLE_STATES = {"待命", "在线"}
+STANDBY_PER_TYPE = {"person": 2, "robot": 2, "dog": 2, "drone": 2}
 ENERGY_PER_KM = {"person": 0.0, "robot": 8.0, "dog": 7.0, "drone": 10.0}
 DEFAULT_REQUIREMENTS = {
     "team": {"capabilities": ["manual_inspection"], "terrain": "flat", "min_width_m": 0.5, "max_slope_deg": 20},
@@ -395,13 +396,58 @@ def _pack_assignment(task, resource, result, route, resolution, coverage="full",
     return row
 
 
+def _urgent(task: dict) -> bool:
+    return str(task.get("name") or "").startswith("紧急") or bool(task.get("interruption"))
+
+
+def _standby_ids(resources: list[dict]) -> set[str]:
+    grouped: dict[str, list[dict]] = {}
+    for resource in resources:
+        if resource.get("status") not in AVAILABLE_STATES:
+            continue
+        grouped.setdefault(resource.get("type"), []).append(resource)
+    held = set()
+    for kind, rows in grouped.items():
+        rows.sort(key=lambda row: (-(row.get("power_percent") or 0), str(row.get("id"))))
+        for row in rows[: STANDBY_PER_TYPE.get(kind, 2)]:
+            held.add(row.get("id"))
+    return held
+
+
+def _restore_standby(assignments: list[dict], resources: list[dict]) -> None:
+    used = {row["resource_id"] for row in assignments}
+
+    def idle(kind: str) -> int:
+        return sum(1 for row in resources if row.get("type") == kind and row.get("status") in AVAILABLE_STATES and row.get("id") not in used)
+
+    for kind, need in STANDBY_PER_TYPE.items():
+        while idle(kind) < need:
+            victim = next(
+                (
+                    row
+                    for row in reversed(assignments)
+                    if row.get("resource_type") == kind
+                    and not _urgent({"name": row.get("task_name")})
+                    and sum(1 for other in assignments if other.get("task_id") == row.get("task_id")) > 1
+                ),
+                None,
+            )
+            if victim is None:
+                break
+            assignments.remove(victim)
+            used.discard(victim["resource_id"])
+
+
 def build_v1_plan(tasks: list[dict], resources: list[dict], environment: dict) -> dict:
-    from platform_app.services.neural_dispatch import choose_team, score_candidates, team_reason
+    from platform_app.services.neural_dispatch import choose_team, score_candidates, suggest_schemes, team_reason
 
     pending = [task for task in tasks if task.get("status") in {"待调度", "待派发"}]
+    pending.sort(key=lambda task: (0 if _urgent(task) else 1, str(task.get("id"))))
+    reserve = _standby_ids(resources)
     used_resources = set()
     assignments = []
     audit = []
+    schemes = []
     for task in pending:
         scored = score_candidates(task, resources, environment, used_resources)
         for item in scored:
@@ -419,8 +465,20 @@ def build_v1_plan(tasks: list[dict], resources: list[dict], environment: dict) -
                 "estimated_energy_pct": result.estimated_energy_pct,
                 "battery_after_pct": result.battery_after_pct,
                 "selection_probability": round(item["probability"], 4),
+                "policy_rank": round(item["rank"], 4),
+                "constraint_mask": item["mask"],
+                "policy_source": item["policy_source"],
             })
-        team = choose_team(task, resources, environment, used_resources)
+        blocked_ids = set(used_resources) if _urgent(task) else set(used_resources) | reserve
+        for scheme in suggest_schemes(task, resources, environment, used_resources):
+            scheme["task_id"] = task.get("id")
+            scheme["task_name"] = task.get("name")
+            schemes.append(scheme)
+        team = choose_team(task, resources, environment, blocked_ids)
+        fallback = False
+        if not team and reserve - used_resources:
+            team = choose_team(task, resources, environment, used_resources)
+            fallback = bool(team)
         placed = []
         for item in team:
             try:
@@ -430,7 +488,8 @@ def build_v1_plan(tasks: list[dict], resources: list[dict], environment: dict) -
                 continue
             placed.append((item, route))
         if placed:
-            sentence = team_reason([item for item, _route in placed], environment)
+            names = "、".join(item["resource"].get("name") or item["resource"].get("id") for item, _route in placed)
+            sentence = f"兜底派出 {names}" if fallback else team_reason([item for item, _route in placed], environment)
             for item, route in placed:
                 assignments.append(_pack_assignment(task, item["resource"], item["result"], route, sentence, probability=item["probability"]))
                 used_resources.add(item["resource"].get("id"))
@@ -456,8 +515,10 @@ def build_v1_plan(tasks: list[dict], resources: list[dict], environment: dict) -
         result = proposal["result"]
         route = proposal["route"]
         sentence = field_resolution(task, resource, result, proposal["remaining"])
-        assignments.append(_pack_assignment(task, resource, result, route, sentence, "full" if proposal["full"] else "partial", proposal["remaining"]))
+        assignments.append(_pack_assignment(task, resource, result, route, "兜底派出 " + sentence, "full" if proposal["full"] else "partial", proposal["remaining"]))
         used_resources.add(resource.get("id"))
+    _restore_standby(assignments, resources)
+    used_resources = {row["resource_id"] for row in assignments}
     assigned_ids = {row["task_id"] for row in assignments}
     blocked = []
     for task in pending:
@@ -471,6 +532,12 @@ def build_v1_plan(tasks: list[dict], resources: list[dict], environment: dict) -
         "environment": environment,
         "map_frame": map_frame(),
         "assignments": assignments,
+        "schemes": schemes,
+        "standby": [
+            {"id": row.get("id"), "name": row.get("name"), "type": row.get("type")}
+            for row in resources
+            if row.get("status") in AVAILABLE_STATES and row.get("id") not in used_resources
+        ],
         "blocked": blocked,
         "unassigned_task_ids": [task.get("id") for task in pending if task.get("id") not in {row["task_id"] for row in assignments}],
         "audit": audit,

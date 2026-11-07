@@ -25,6 +25,12 @@ def _read_records() -> list[dict]:
     return data
 
 
+def clear_runtime_tasks() -> None:
+    with _lock:
+        TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        TASKS_FILE.write_text("[]\n", encoding="utf-8")
+
+
 def list_tasks() -> list[dict]:
     with _lock:
         records = _read_records()
