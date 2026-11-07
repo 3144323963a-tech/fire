@@ -1,9 +1,12 @@
 import json
+from xml.etree import ElementTree as ET
 
 from platform_app.services.task_service import create_task, list_tasks
 from platform_app.services.sample_data_service import get_overview
 from platform_app.services.dispatch_service import create_dispatch
 from platform_app.services.feedback_service import create_feedback, list_feedback
+from platform_app.services.planning_service import build_v1_plan
+from platform_app.services.network_source_service import network_sources
 
 
 def handle_tasks(method: str, body: bytes = b"") -> tuple[int, dict | list]:
@@ -29,6 +32,21 @@ def handle_overview() -> tuple[int, dict]:
         return 200, get_overview()
     except RuntimeError as exc:
         return 500, {"error": str(exc)}
+
+
+def handle_planning() -> tuple[int, dict]:
+    try:
+        overview = get_overview()
+        return 200, build_v1_plan(list_tasks(), overview.get("resources", []), overview.get("environment", {}))
+    except RuntimeError as exc:
+        return 500, {"error": str(exc)}
+
+
+def handle_network_sources() -> tuple[int, list[dict] | dict]:
+    try:
+        return 200, network_sources()
+    except (OSError, ValueError, ET.ParseError) as exc:
+        return 500, {"error": f"路网样例读取失败：{exc}"}
 
 
 def handle_dispatch(body: bytes) -> tuple[int, dict]:

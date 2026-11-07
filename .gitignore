@@ -12,3 +12,6 @@ venv/
 # Logs and temporary files
 *.log
 *.tmp
+
+# Optional local vision experiment environment
+.venv-vision/
