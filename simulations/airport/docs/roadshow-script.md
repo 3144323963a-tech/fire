@@ -1,6 +1,6 @@
 # 路演讲解提纲
 
-本目录的 `media/airport-collaboration-roadshow.mp4` 是一版 58 秒横屏片，字幕顺序对应四个重点：
+本目录的 `media/airport-collaboration-roadshow.mp4` 是一版 58 秒横屏片，字幕顺序对应五个重点：
 
 1. **机器狗先到场**：三只 DOG 并行走 RMF 路线，页面标出实际运动速度。
 2. **无人机分层复核**：对应 DOG 到点后才放行 UAV，展示 6 / 7 / 8 米高度差异。

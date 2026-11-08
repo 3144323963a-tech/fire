@@ -23,6 +23,12 @@ cd <仓库路径>\simulations\airport
 .\stop-windows.ps1
 ```
 
+如果 Windows 提示脚本执行策略限制，可仅对本次进程放行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-windows.ps1 -Build
+```
+
 如果只修改了 Python 或网页文件，可以不加 `-Build`，Compose 会使用已有镜像并挂载这些文件。也可以直接运行：
 
 ```powershell
@@ -55,13 +61,15 @@ docker build -t rmf-airport-sim:humble `
 
 ## 验证
 
-容器启动后，在本目录执行：
+容器启动后，安装 Node.js 18 或更新版本，在本目录执行：
 
 ```powershell
 node .\tests\verify_live.mjs
 ```
 
 验证脚本会检查网站就绪、重复任务拒绝、暂停/恢复、依赖顺序、12 个 RMF 任务、8 台设备真实移动和返航、无人机高度、三次交接驻留以及 9 张证据图。报告写入 `runtime/reports/verification.json`。
+
+本次打包沿用已通过验证的场景和控制代码，基准运行报告保存在 [`docs/validation-report.json`](docs/validation-report.json)。报告记录的是本机演示实例的一轮实际运行；更换基础镜像、设备配置或宿主机后应重新执行上述验证。
 
 ## 文件索引
 
