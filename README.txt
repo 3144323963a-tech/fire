@@ -50,3 +50,10 @@ task_type 可用值：robot（机器狗）、team（人员协同）、drone（�
 - 增加或修改 API：platform_app/routes/tasks.py
 - 调整页面结构、样式、浏览器交互：web/ 下对应文件
 - 修改端口：platform_app/config.py
+
+三维机场协同仿真（Open-RMF / Gazebo）
+- 中文部署说明和注释文档：simulations/airport/README.zh-CN.md
+- 模块与联动逻辑说明：simulations/airport/docs/代码注释与架构.md
+- 英文运行说明：simulations/airport/README.md
+- 58 秒展示视频：simulations/airport/media/airport-collaboration-roadshow.mp4
+- 本示例使用独立 Docker 服务，默认 http://localhost:8092；不在 Vercel Functions 中运行 Gazebo。
