@@ -83,6 +83,11 @@ node .\tests\verify_live.mjs
 - `start.sh`：容器入口，启动 Xvfb/noVNC、Gazebo、ROS 节点和网站后端。
 - `docs/代码注释与架构.md`：面向中文读者的联动逻辑、接口和排错说明。
 - `docs/roadshow-script.md`：58 秒视频及现场讲解节奏。
+- `web-demo/index.html`：可直接上传静态托管的单文件展示页；不依赖 Docker、ROS 或 API Key。
+
+## 静态展示页
+
+需要快速路演时，直接打开或部署 [`web-demo/index.html`](web-demo/index.html)。它内置同步机场画面、设备状态、作业节点、现场记录和 JSON 导出，不需要启动服务；页面上的播放速度和节点跳转适合现场讲解。
 
 ## 边界说明
 
