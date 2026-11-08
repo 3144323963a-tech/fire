@@ -1,0 +1,9 @@
+# Application source and pinned model assets only.
+.git
+**/__pycache__
+**/*.pyc
+runtime
+media
+video
+video-tools
+*.log

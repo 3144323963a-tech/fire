@@ -6,3 +6,6 @@ __pycache__
 platform_app/data
 tests
 .DS_Store
+
+# Gazebo / ROS simulator is deployed separately from Vercel Functions.
+simulations/
