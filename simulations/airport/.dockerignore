@@ -4,6 +4,7 @@
 **/*.pyc
 runtime
 media
+web-demo
 video
 video-tools
 *.log
